@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include <ws2tcpip.h>	//Socket Library for windows
 
 #pragma comment (lib, "ws2_32.lib")
@@ -43,6 +44,8 @@ int main()
 	if (clientSocket == INVALID_SOCKET)
 	{
 		std::cerr << "Can't Create a Socket! Quitting" << std::endl;
+		closesocket(listening);
+		WSACleanup();
 		return -1;
 	}
 
@@ -76,7 +79,9 @@ int main()
 		int bytesRecieved = recv(clientSocket, buf, 4096, 0);
 		if (bytesRecieved == SOCKET_ERROR)
 		{
-			std::cerr << "Error in rec(). Quitting" << std::endl;
+			std::cerr << "Error in recv(). Quitting" << std::endl;
+			closesocket(clientSocket);
+			WSACleanup();
 			return -1;
 		}
 
@@ -85,6 +90,8 @@ int main()
 			std::cout << "Client disconnected" << std::endl;
 			break;
 		}
+
+		std::cout << "<" << host << ">" << std::string(buf, 0, bytesRecieved) << std::endl;
 
 		//Echo message back to client
 		send(clientSocket, buf, bytesRecieved + 1, 0);
