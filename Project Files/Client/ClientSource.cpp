@@ -4,10 +4,29 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
+#define MAX_BUFFER_SIZE (49152)
+
+DWORD WINAPI ListeningThread(LPVOID param)
+{
+	SOCKET s = (SOCKET)param;
+	char Buffer[MAX_BUFFER_SIZE];
+	int iResult;
+
+	do
+	{
+		iResult = recv(s, Buffer, MAX_BUFFER_SIZE, 0);
+		if (iResult <= 0) break;
+		Buffer[iResult] = '\0';
+		std::cout << Buffer << std::endl;
+	} while (true);
+
+	return 0;
+}
+
 int main()
 {
-	std::string ipAddress = "127.0.0.1";		// IP Address of the server
-	int port = 54000;							// LIstening port # on the Server
+	std::string ipAddress = "99.227.218.80";	// IP Address of the server
+	int port = 54010;								// LIstening port # on the Server
 
 	//Initialize WinSock
 	WSAData data;
@@ -29,6 +48,7 @@ int main()
 		WSACleanup();
 		return -1;
 	}
+
 	// Fill in a Hint Structure
 	sockaddr_in hint;
 	hint.sin_family = AF_INET;
@@ -45,34 +65,35 @@ int main()
 		return -1;
 	}
 
-	//Do-while loop to send and recieve data
-	char buf[4096];
-	std::string userInput;
+	//std::cout << "Please Enter a username: " << std::endl;
+	//getline(std::cin, userInput);
+	send(sock, "", 0, 0);
 
+	char Buffer[MAX_BUFFER_SIZE];
+	recv(sock, Buffer, MAX_BUFFER_SIZE, 0);
+	std::cout << Buffer << std::endl;
+	std::string userInput;
+	getline(std::cin, userInput);
+	std::cout << std::endl;
+	int sendResult = send(sock, userInput.c_str(), userInput.size() + 1, 0);
+
+	// Create Listening Thread to handle incoming messages
+	HANDLE hThread;
+	DWORD dwThreadID;
+	hThread = CreateThread(NULL, 0, &ListeningThread, (void*)sock, 0, &dwThreadID);
+
+	//Do-while loop to send and recieve data
 	do
 	{
-		// Prompt the user for some text
-		std::cout << "> ";
+		// Prompt the user for some text and Send the Text
 		getline(std::cin, userInput);
-
-		if (userInput.size() > 0)	// Make sure user has typed in something
+		std::cout << std::endl;
+		int sendResult = send(sock, userInput.c_str(), userInput.size() + 1, 0);
+		if (sendResult == SOCKET_ERROR)
 		{
-			// Send the Text
-			int sendResult = send(sock, userInput.c_str(), userInput.size() + 1, 0);
-			if (sendResult != SOCKET_ERROR)
-			{
-
-				//Wait for Response
-				ZeroMemory(buf, 4096);
-				int bytesRecieved = recv(sock, buf, 4096, 0);
-				if (bytesRecieved > 0)
-				{
-					//Echo response to console
-					std::cout << "SERVER> " << std::string(buf, 0, bytesRecieved) << std::endl;
-				}
-			}			
+			std::cout << "<SERVER> Input failed to send..\n" << std::endl;
 		}
-	} while (userInput.size() > 0);
+	} while (true);
 
 	//cleanup
 	closesocket(sock);
