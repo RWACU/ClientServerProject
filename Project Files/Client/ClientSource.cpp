@@ -25,7 +25,7 @@ DWORD WINAPI ListeningThread(LPVOID param)
 
 int main()
 {
-	std::string ipAddress = "99.227.218.80";	// IP Address of the server
+	std::string ipAddress = "PHYSICAL IP HERE";		// IP Address of the server
 	int port = 54010;								// LIstening port # on the Server
 
 	//Initialize WinSock

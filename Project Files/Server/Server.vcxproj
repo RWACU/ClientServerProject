@@ -129,6 +129,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ServerSource.cpp" />
+    <ClCompile Include="TCPListener.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="TCPListener.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
