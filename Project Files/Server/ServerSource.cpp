@@ -1,32 +1,29 @@
-#include <iostream>
-#include <string>
-#include <ws2tcpip.h>	//Socket Library for windows
-#include "TCPListener.h"
+#include "SocketHandler.h"	// Server interface
 
-#pragma comment (lib, "ws2_32.lib")
+// Constant expressions to be used throughout Client //
+//constexpr char IPADDRESS[] = "###.###.###.###";			// IP Address of the server
+constexpr char IPADDRESS[] = "192.168.0.11";			// IP Address of the server
+constexpr unsigned PORT = 54010;							// Listening port # on the Server
 
-/*    TODO    *//*
-	-Get rid of extraneous information
-	-Rename variables and functions to more meaningful names
-		(The current ones were used as it was based on a tutorial
-		and the dichotomy between variables names could have caused
-		issues
-	-Redo comments to explain rationale
-	-Add better error handling in Listener class
-*/			  /**/
-
-void Listener_MessageRecieved(TCPListener *listener, int client, std::string msg)
+// When server recieves a message from a client 
+void MessageRecievedHandler(SocketHandler *server, int client, std::string msg)
 {
-	listener->Send(client, msg);
+	server->Send(client, msg);
 }
 
 int main()
 {
-	TCPListener server("192.168.0.11", 54010, Listener_MessageRecieved);
+	// Create new server through SocketHandler interface
+	SocketHandler server(IPADDRESS, PORT, MessageRecievedHandler);
 
-	if (server.Init())
+	// Run server if it has initialized properly; exit with error code "-1" if it has not
+	if (server.initializeWinsock())
 	{
 		server.run();
+	}
+	else
+	{
+		return -1;
 	}
 		
 	return 0;
