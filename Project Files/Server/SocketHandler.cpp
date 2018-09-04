@@ -2,10 +2,10 @@
 #include <iostream>			// cout/cerr interfaces
 #include <string>			// String interface
 #include <sstream>			// StringStream interface 
+#include <fstream>			// ifstream/ofstream interface
 
 // Constant expressions/Defines to be used throughout Server Class //
 constexpr unsigned MAX_BUFFER_SIZE = (49152);		// Buffer size of the Incoming/Outgoing messages
-#define USERNAME users[inputSocket];				// Redefinition of Users Socket Related Name
 
 // Initialize Winsock returning whether startup has succeeded
 bool SocketHandler::initializeWinsock()
@@ -65,6 +65,67 @@ SOCKET SocketHandler::createListenSocket()
 	return std::move(tempListenSocket);
 }
 
+void SocketHandler::disconnectClient(SOCKET quittingClient)
+{
+	closesocket(quittingClient);
+	FD_CLR(quittingClient, &master);
+	std::cout << getClientID(quittingClient) << " has closed their client" << std::endl;
+}
+
+int SocketHandler::sendVerifyHandshake(SOCKET verificationSocket, int iResult)
+{
+	char rec[3];
+	if (recv(verificationSocket, rec, 3, 0) < 0)
+	{
+		// The client sent an error code, or has closed, must close program
+		disconnectClient(verificationSocket);
+	}
+	return iResult;
+}
+
+// Send file over connection to client
+void SocketHandler::sendFile(std::string &filePath, unsigned client)
+{
+	// Send new file command to client to prep for file transfer
+	std::cout << "Sending File..." << std::endl;
+	sendVerifyHandshake(client, send(client, "~New File~", 11, 0));
+	
+	// Retrieving the file name with extension from the file path, send to client
+	std::string fileName = filePath.substr(filePath.find_last_of('\\') + 1);
+	std::ifstream inputFile(filePath, std::ios::in | std::ios::ate | std::ios::binary);
+	
+	if (inputFile.is_open())
+	{
+		// When file can be opened, send client the filename
+		sendVerifyHandshake(client, send(client, fileName.c_str(), fileName.size() +1, 0));
+		
+		// Retrieve total file size and send to client for processing
+		int fileSize = (int)inputFile.tellg();
+		inputFile.seekg(std::ios::beg);
+		char fileSizeBuffer[1024];
+		_itoa_s(fileSize, fileSizeBuffer, 10);
+		sendVerifyHandshake(client, send(client, fileSizeBuffer, strlen(fileSizeBuffer), 0));
+
+		// Send data from file in 1024 byte chunks
+		unsigned char buffer[1024];
+		for ( ; fileSize > 0; fileSize -= 1024)
+		{
+			if (fileSize >= 1024)
+			{
+				inputFile.read(reinterpret_cast<char *>(buffer), 1024);
+				sendVerifyHandshake(client, send(client, (char*)buffer, sizeof(buffer), 0));
+			}
+			else
+			{
+				inputFile.read(reinterpret_cast<char *>(buffer), fileSize);
+				sendVerifyHandshake(client, send(client, (char*)buffer, fileSize, 0));
+			}
+		}
+	}
+	inputFile.close();
+	return;
+}
+
 // Create new sockets, and recieve/handle input from clients
 void SocketHandler::run()
 {
@@ -97,7 +158,8 @@ void SocketHandler::run()
 		{
 			// For the currently active socket, take the clients socket and username for processing
 			SOCKET currentSocket = copy.fd_array[inputSocket];
-			std::string& userName = users[currentSocket];
+			std::string& userName = getClientID(currentSocket);
+
 			if (currentSocket == listenSocket)
 			{
 				// The listenSocket has found a new client wanting to connect
@@ -106,41 +168,22 @@ void SocketHandler::run()
 			else
 			{
 				// Handle client input buffer to broadcast to all existing users
-				char inputbuffer[MAX_BUFFER_SIZE];
-				ZeroMemory(inputbuffer, MAX_BUFFER_SIZE);
-				int bytesIn = recv(currentSocket, inputbuffer, MAX_BUFFER_SIZE, 0);
+				char inputBuffer[MAX_BUFFER_SIZE];
+				ZeroMemory(inputBuffer, MAX_BUFFER_SIZE);
+				int bytesIn = recv(currentSocket, inputBuffer, MAX_BUFFER_SIZE, 0);
 				if (bytesIn == SOCKET_ERROR || bytesIn < 0)
 				{
 					// Client has disconnected, print to server window, and close their socket
-					closesocket(currentSocket);
-					FD_CLR(currentSocket, &master);
-					std::cout << userName << " Has closed their client" << std::endl;
+					disconnectClient(currentSocket);
+					break;
+				}
+				if (strcmp(inputBuffer, "file") == 0)
+				{
+					MessageRecievedHandler(this, currentSocket, inputBuffer);
 				}
 				else
 				{
-					if (userName.size() == 0)
-					{
-						// The user entered a username into the buffer as their first input
-						// Process buffer to obtain the first word, that will be their username
-
-						// Take only first word of buffer as username
-						std::stringstream singleLineName{ inputbuffer };
-						singleLineName >> userName;
-						userName = inputbuffer;
-						
-						// Broadcast new connection to all existing clients
-						std::ostringstream welcomeNewConnectionMsg;
-						welcomeNewConnectionMsg << "<SERVER> " << userName << " has joined the chat!\r\n";
-						broadcastMSG(currentSocket, welcomeNewConnectionMsg.str());
-						std::cout << currentSocket << " is " << userName << std::endl;
-					}
-					else
-					{
-						// Broadcast users message to all existing clients
-						std::ostringstream output;
-						output << userName << ": " << inputbuffer << "\r\n";
-						broadcastMSG(currentSocket, output.str());
-					}
+					
 				}
 			}
 		}
@@ -195,11 +238,9 @@ void SocketHandler::acceptNewClient()
 
 	// Add the new connection to the list of connected clients
 	FD_SET(newClientSocket, &master);
-	users[newClientSocket];
+	clientID[newClientSocket];
 
-	// Send a welcome message to the connected client
-	std::string welcomeMemberMsg = "Welcome to the Server, Please enter a username (No Spaces): ";
-	Send(newClientSocket, welcomeMemberMsg);
+	NewClientHandler(this, newClientSocket);
 
 	return;
 }
